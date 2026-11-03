@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CircleDollarSign, Pencil, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
-import { isPaycheck, sortPaychecks, STORAGE_KEY, validatePaycheck, type Paycheck } from "@/lib/paychecks";
+import { isPaycheck, localDateISO, sortPaychecks, STORAGE_KEY, validatePaycheck, type Paycheck } from "@/lib/paychecks";
 
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600";
 const action = "rounded-lg px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600";
@@ -14,6 +14,7 @@ export function PaycheckManager() {
   const [loaded, setLoaded] = useState(false);
   const [storageError, setStorageError] = useState("");
   const [date, setDate] = useState("");
+  const [today, setToday] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -21,6 +22,7 @@ export function PaycheckManager() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    setToday(localDateISO());
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -59,7 +61,7 @@ export function PaycheckManager() {
     event.preventDefault();
     setError("");
     try {
-      const values = validatePaycheck(date, amount, note);
+      const values = validatePaycheck(date, amount, note, localDateISO());
       const next = editingId
         ? items.map((item) => item.id === editingId ? { ...item, ...values } : item)
         : [...items, { id: crypto.randomUUID(), ...values }];
@@ -98,7 +100,7 @@ export function PaycheckManager() {
             <h3 className="mb-4 text-lg font-semibold">{editingId ? "Edit paycheck" : "Add paycheck"}</h3>
             <form id="paycheck-form" onSubmit={submit} className="space-y-4">
               <label className="block text-sm font-medium">Date received
-                <input className={`mt-1 ${field}`} type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={!loaded || !!storageError} />
+                <input className={`mt-1 ${field}`} type="date" max={today || undefined} value={date} onChange={(e) => setDate(e.target.value)} required disabled={!loaded || !!storageError} />
               </label>
               <label className="block text-sm font-medium">Net amount (USD)
                 <input className={`mt-1 ${field}`} type="text" inputMode="decimal" placeholder="925.00" value={amount} onChange={(e) => setAmount(e.target.value)} required disabled={!loaded || !!storageError} />
