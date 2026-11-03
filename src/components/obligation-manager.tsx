@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
+import { OBLIGATIONS_CHANGED } from "@/lib/budget";
 import { categories, categoryLabels, dueDate, isObligation, monthKey, OBLIGATIONS_KEY, validateObligation, type Category, type Obligation } from "@/lib/obligations";
 
 const field = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus-visible:outline-2 focus-visible:outline-indigo-600";
@@ -39,6 +40,7 @@ export function ObligationManager() {
     try {
       localStorage.setItem(OBLIGATIONS_KEY, JSON.stringify(next));
       setItems(next);
+      window.dispatchEvent(new Event(OBLIGATIONS_CHANGED));
       setStorageError("");
       return true;
     } catch {
