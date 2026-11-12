@@ -1,7 +1,8 @@
-import { ArrowUpRight, CalendarDays, Goal, Wallet } from "lucide-react";
+import { ArrowUpRight, CalendarDays, Wallet } from "lucide-react";
 import { PaycheckManager } from "@/components/paycheck-manager";
 import { ObligationManager } from "@/components/obligation-manager";
 import { BudgetManager } from "@/components/budget-manager";
+import { GoalManager } from "@/components/goal-manager";
 import { Card } from "@/components/ui/card";
 import { demo } from "@/lib/demo-data";
 import { formatMoney } from "@/lib/money";
@@ -12,7 +13,7 @@ export default function Home() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
           <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-600 p-2 text-white"><Wallet size={22} /></div><span className="text-xl font-bold tracking-tight">MoneyFlow</span></div>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Goals & sample bills: demo data</span>
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Sample bills: demo data</span>
         </div>
       </header>
       <main className="mx-auto max-w-6xl space-y-8 px-5 py-10">
@@ -33,12 +34,10 @@ export default function Home() {
             <div className="mb-4 flex items-center justify-between"><h2 id="bills-heading" className="text-xl font-bold">Sample bills</h2><span className="text-xs text-slate-500">Sample schedule</span></div>
             <Card className="divide-y divide-slate-100 !p-0">{demo.upcomingObligations.map((bill) => <div key={bill.name} className="flex items-center justify-between gap-4 p-5"><div><p className="font-medium">{bill.name}</p><p className="mt-1 text-sm text-slate-500">Due {bill.due}</p></div><span className="font-semibold">{formatMoney(bill.amountCents)}</span></div>)}</Card>
           </section>
-          <section aria-labelledby="goals-heading">
-            <div className="mb-4 flex items-center justify-between"><h2 id="goals-heading" className="text-xl font-bold">Savings goals</h2><Goal className="text-slate-500" size={20}/></div>
-            <Card className="space-y-7">{demo.goals.map((goal) => { const percent = Math.min(100, Math.round(goal.savedCents / goal.targetCents * 100)); return <div key={goal.name}><div className="mb-2 flex items-center justify-between gap-3"><span className="font-medium">{goal.name}</span><span className="text-sm text-slate-500">{percent}%</span></div><div role="progressbar" aria-label={goal.name} aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-600" style={{ width: `${percent}%` }}/></div><p className="mt-2 text-sm text-slate-500">{formatMoney(goal.savedCents)} of {formatMoney(goal.targetCents)}</p></div>; })}</Card>
-          </section>
+
         </div>
-        <p className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900"><strong>Next up:</strong> Your paychecks, monthly obligations, and manual budget are stored in this browser. Sample bills and savings goals are illustrative only. Update your balance after transactions.</p>
+        <GoalManager />
+        <p className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900"><strong>Next up:</strong> Your paychecks, monthly obligations, and manual budget are stored in this browser. Sample bills are illustrative only. Savings goals are tracked separately from your available balance; update your balance after transactions.</p>
       </main>
     </div>
   );
