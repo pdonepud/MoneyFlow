@@ -57,6 +57,7 @@ export function BudgetManager() {
       const next = validateBudget(balance, buffer);
       localStorage.setItem(BUDGET_KEY, JSON.stringify(next));
       setSettings(next);
+      window.dispatchEvent(new Event(BUDGET_CHANGED));
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save budget");
