@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
+import { GOALS_CHANGED } from "@/lib/savings-plan";
 import { GOALS_KEY, goalProgress, isSavingsGoal, validateGoal, type SavingsGoal } from "@/lib/goals";
 
 const field = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus-visible:outline-2 focus-visible:outline-indigo-600";
@@ -36,6 +37,7 @@ export function GoalManager() {
     try {
       localStorage.setItem(GOALS_KEY, JSON.stringify(next));
       setGoals(next);
+      window.dispatchEvent(new Event(GOALS_CHANGED));
       setStorageError("");
       return true;
     } catch {
