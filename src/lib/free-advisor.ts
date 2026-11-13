@@ -15,12 +15,35 @@ export type FreeTopic = typeof FREE_TOPICS[number]["id"];
 export function classifyFreeQuestion(question:string):FreeTopic|null {
   const q=question.toLowerCase().trim();
   if (!q) return null;
+  // Assess affordability before loan-payment keywords: "downpayment" contains "payment".
+  if (/down[\\s-]*payment|down[\\s-]*pay|\\$?[\\d,]+(?:\\.\\d{1,2})?\\s*(?:dollars?\\s*)?down\\b|up[\\s-]*front|afford|can i buy|should i buy|can i purchase/.test(q)) return "down-payment";
   if (/goal|saving|save up|progress|priority/.test(q)) return "goals";
-  if (/down.payment|upfront/.test(q)) return "down-payment";
   if (/monthly|per month|payment|interest|apr|loan|financ|insurance|ownership/.test(q)) return "monthly-cost";
-  if (/down.payment|upfront|afford|buy|purchase|motorcycle|bike/.test(q)) return "down-payment";
   if (/budget|bill|rent|buffer|spend|balance|left over|remaining/.test(q)) return "budget";
+  if (/buy|purchase|motorcycle|bike/.test(q)) return "down-payment";
   return null;
+}
+
+// Extract only an explicitly stated down payment, not the purchase price.
+// Supports "$1,000 down", "1000$ downpayment" and "down payment of $1000".
+export function statedDownPayment(question:string):number|null {
+  const amount=String.raw`(?:\\$\\s*([\\d,]+(?:\\.\\d{1,2})?)|([\\d,]+(?:\\.\\d{1,2})?)\\s*\\$?)`;
+  const before=new RegExp(amount+String.raw`\\s*(?:dollars?\\s*)?(?:as\\s+(?:a|the)\\s+)?down[\\s-]*(?:payment|pay)?\\b`,"i");
+  const after=new RegExp(String.raw`down[\\s-]*(?:payment|pay)\\s*(?:of|is|:)?\\s*`+amount,"i");
+  const match=question.match(before) ?? question.match(after);
+  if (!match) return null;
+  const raw=match[1]??match[2];
+  const value=Number(raw.replace(/,/g,""));
+  if (!Number.isFinite(value)||value<0||value>1_000_000) return null;
+  return Math.round(value*100);
+}
+
+export function freeAdviceForQuestion(context:AdvisorContext,question:string,topic:FreeTopic):string {
+  const answer=freeAdvice(context,topic);
+  if (topic!=="down-payment" || !context.financing) return answer;
+  const stated=statedDownPayment(question);
+  if (stated===null || stated===context.financing.downPaymentCents) return answer;
+  return "You mentioned a "+formatMoney(stated)+" down payment, but your saved financing estimate uses "+formatMoney(context.financing.downPaymentCents)+". The figures below use the saved estimate, not the amount in your question. Update the financing calculator and ask again for an accurate comparison.\\n\\n"+answer;
 }
 export function freeAdvice(context:AdvisorContext,topic:FreeTopic):string {
   if (!isAdvisorContext(context)) throw new Error("Invalid financial context");
