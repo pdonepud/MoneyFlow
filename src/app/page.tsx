@@ -5,6 +5,7 @@ import { BudgetManager } from "@/components/budget-manager";
 import { GoalManager } from "@/components/goal-manager";
 import { SavingsPlanner } from "@/components/savings-planner";
 import { FinancingCalculator } from "@/components/financing-calculator";
+import { PurchaseAdvisor } from "@/components/purchase-advisor";
 import { Card } from "@/components/ui/card";
 import { demo } from "@/lib/demo-data";
 import { formatMoney } from "@/lib/money";
@@ -41,6 +42,7 @@ export default function Home() {
         <GoalManager />
         <SavingsPlanner />
         <FinancingCalculator />
+        <PurchaseAdvisor />
         <p className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900"><strong>Next up:</strong> Your paychecks, monthly obligations, and manual budget are stored in this browser. Sample bills are illustrative only. Savings goals are tracked separately from your available balance. The savings planner recommends allocations only; it does not transfer money.</p>
       </main>
     </div>
