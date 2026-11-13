@@ -25,7 +25,7 @@ describe("free purchase advisor",()=>{
    const result=freeAdvice(context,"monthly-cost");
    expect(result).toContain("$166.07");
    expect(result).toContain("$386.07");
-   expect(result).toContain("affordability is unknown");
+   expect(result).toContain("not a monthly affordability verdict");
  });
  it("shows savings separately",()=>{
    expect(freeAdvice(context,"goals")).toContain("$4,000.00 remaining");
