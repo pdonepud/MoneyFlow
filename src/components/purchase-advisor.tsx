@@ -7,6 +7,7 @@ import { FINANCING_KEY, calculateFinancing, type FinancingInputs } from "@/lib/f
 import { GOALS_KEY, isSavingsGoal } from "@/lib/goals";
 import { isObligation, monthKey, OBLIGATIONS_KEY } from "@/lib/obligations";
 import { type AdvisorContext, isAdvisorContext } from "@/lib/advisor";
+import { classifyFreeQuestion, FREE_TOPICS, freeAdvice, type FreeTopic } from "@/lib/free-advisor";
 
 type ChatMessage = { role:"user"|"assistant"; text:string };
 const suggestions = [
@@ -40,6 +41,7 @@ function readContext(): AdvisorContext {
 
 export function PurchaseAdvisor() {
   const [messages,setMessages] = useState<ChatMessage[]>([]);
+  const [mode,setMode] = useState<"free"|"ai">("free");
   const [question,setQuestion] = useState("");
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
@@ -52,6 +54,11 @@ export function PurchaseAdvisor() {
     catch(e) { setError(e instanceof Error?e.message:"Unable to read saved data."); return; }
     setMessages(old=>[...old,{role:"user",text}]);
     setQuestion("");
+    if (mode==="free") {
+      const topic=classifyFreeQuestion(text);
+      setMessages(old=>[...old,{role:"assistant",text:topic ? freeAdvice(context,topic) : "I can help with your budget, down payment, monthly financing costs, and savings goals. Choose one of the suggested questions below."}]);
+      return;
+    }
     setBusy(true);
     try {
       const response=await fetch("/api/advisor",{
@@ -70,20 +77,38 @@ export function PurchaseAdvisor() {
       setError(e instanceof Error?e.message:"Unable to contact the advisor.");
     } finally { setBusy(false); }
   }
+  function askTopic(topic:FreeTopic) {
+    if (busy) return;
+    setError("");
+    try {
+      const context=readContext();
+      const label=FREE_TOPICS.find(t=>t.id===topic)?.label ?? topic;
+      setMessages(old=>[...old,{role:"user",text:label},{role:"assistant",text:freeAdvice(context,topic)}]);
+    } catch(e) { setError(e instanceof Error?e.message:"Unable to read saved data."); }
+  }
   function submit(e:FormEvent<HTMLFormElement>) { e.preventDefault(); void ask(question); }
   return <section aria-labelledby="advisor-heading" className="space-y-4">
     <div>
-      <h2 id="advisor-heading" className="text-xl font-bold">AI purchase advisor</h2>
+      <h2 id="advisor-heading" className="text-xl font-bold">Purchase advisor</h2>
       <p className="mt-1 text-sm text-slate-600">Ask about a purchase using your saved budget, bills, goals and financing estimate.</p>
     </div>
     <Card className="space-y-4">
-      <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-        Each question sends a snapshot of your saved financial amounts and goal names to the AI provider.
-        Your data is user-entered, not bank-verified. No transactions or loan applications are made.
-        Monthly affordability cannot be confirmed without recurring income.
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Advisor mode">
+        <button type="button" aria-pressed={mode==="free"} disabled={busy} onClick={()=>{setMode("free");setError("");setMessages([]);}}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold ${mode==="free"?"bg-indigo-600 text-white":"border border-slate-300 text-slate-700"}`}>Free advisor</button>
+        <button type="button" aria-pressed={mode==="ai"} disabled={busy} onClick={()=>{setMode("ai");setError("");setMessages([]);}}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold ${mode==="ai"?"bg-indigo-600 text-white":"border border-slate-300 text-slate-700"}`}>AI advisor (API credits)</button>
       </div>
+      <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+        {mode==="free" ? "Free mode runs entirely in your browser. No API key, credits or financial data upload is required. It supports common budget, savings and financing questions, not unrestricted conversation." :
+        "AI mode sends your saved financial amounts and goal names to the AI provider and requires separately billed API credits."}
+        {" "}Figures are based on your entries, not bank-verified. Monthly affordability needs recurring income. No transactions are made.
+      </div>
+      {mode==="free" && <div className="flex flex-wrap gap-2">{FREE_TOPICS.map(t=>
+        <button key={t.id} type="button" onClick={()=>askTopic(t.id)} className="rounded-full border border-indigo-200 px-3 py-2 text-left text-sm text-indigo-700 hover:bg-indigo-50">{t.label}</button>
+      )}</div>}
       <div aria-live="polite" className="max-h-96 space-y-3 overflow-y-auto">
-        {messages.length===0 ? <div className="space-y-3">
+        {messages.length===0 && mode==="ai" ? <div className="space-y-3">
           <p className="text-sm text-slate-600">Try one of these questions:</p>
           <div className="flex flex-wrap gap-2">{suggestions.map(s=>
             <button key={s} type="button" disabled={busy} onClick={()=>void ask(s)}
