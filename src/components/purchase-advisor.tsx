@@ -7,7 +7,7 @@ import { FINANCING_KEY, calculateFinancing, type FinancingInputs } from "@/lib/f
 import { GOALS_KEY, isSavingsGoal } from "@/lib/goals";
 import { isObligation, monthKey, OBLIGATIONS_KEY } from "@/lib/obligations";
 import { type AdvisorContext, isAdvisorContext } from "@/lib/advisor";
-import { classifyFreeQuestion, FREE_TOPICS, freeAdvice, type FreeTopic } from "@/lib/free-advisor";
+import { classifyFreeQuestion, FREE_TOPICS, freeAdviceForQuestion, type FreeTopic } from "@/lib/free-advisor";
 
 type ChatMessage = { role:"user"|"assistant"; text:string };
 const suggestions = [
@@ -56,7 +56,7 @@ export function PurchaseAdvisor() {
     setQuestion("");
     if (mode==="free") {
       const topic=classifyFreeQuestion(text);
-      setMessages(old=>[...old,{role:"assistant",text:topic ? freeAdvice(context,topic) : "I can help with your budget, down payment, monthly financing costs, and savings goals. Choose one of the suggested questions below."}]);
+      setMessages(old=>[...old,{role:"assistant",text:topic ? freeAdviceForQuestion(context,text,topic) : "I can help with your budget, down payment, monthly financing costs, and savings goals. Choose one of the suggested questions below."}]);
       return;
     }
     setBusy(true);
@@ -83,7 +83,7 @@ export function PurchaseAdvisor() {
     try {
       const context=readContext();
       const label=FREE_TOPICS.find(t=>t.id===topic)?.label ?? topic;
-      setMessages(old=>[...old,{role:"user",text:label},{role:"assistant",text:freeAdvice(context,topic)}]);
+      setMessages(old=>[...old,{role:"user",text:label},{role:"assistant",text:freeAdviceForQuestion(context,label,topic)}]);
     } catch(e) { setError(e instanceof Error?e.message:"Unable to read saved data."); }
   }
   function submit(e:FormEvent<HTMLFormElement>) { e.preventDefault(); void ask(question); }
