@@ -16,6 +16,7 @@ export function classifyFreeQuestion(question:string):FreeTopic|null {
   const q=question.toLowerCase().trim();
   if (!q) return null;
   if (/goal|saving|save up|progress|priority/.test(q)) return "goals";
+  if (/down.payment|upfront/.test(q)) return "down-payment";
   if (/monthly|per month|payment|interest|apr|loan|financ|insurance|ownership/.test(q)) return "monthly-cost";
   if (/down.payment|upfront|afford|buy|purchase|motorcycle|bike/.test(q)) return "down-payment";
   if (/budget|bill|rent|buffer|spend|balance|left over|remaining/.test(q)) return "budget";
