@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyFreeQuestion, freeAdvice } from "./free-advisor";
+import { classifyFreeQuestion, freeAdvice, freeAdviceForQuestion, statedDownPayment } from "./free-advisor";
 import type { AdvisorContext } from "./advisor";
 const context:AdvisorContext={
   budget:{balanceCents:10000,bufferCents:10000},month:"2026-11",
@@ -14,6 +14,23 @@ describe("free purchase advisor",()=>{
    expect(classifyFreeQuestion("How are my savings goals?")).toBe("goals");
    expect(classifyFreeQuestion("Show my budget")).toBe("budget");
    expect(classifyFreeQuestion("Tell me a joke")).toBe(null);
+ });
+ it("understands conversational down payment formats",()=>{
+   for (const question of [
+     "Do u think i can afford a $6000 motorcycle with a 1000$ downpayment",
+     "Can I buy a bike with $1,000 down?",
+     "Should I buy a motorcycle with a down payment of $1000?"
+   ]) {
+     expect(classifyFreeQuestion(question)).toBe("down-payment");
+     expect(statedDownPayment(question)).toBe(100000);
+   }
+   expect(statedDownPayment("Can I afford a $6000 motorcycle?")).toBe(null);
+ });
+ it("flags mismatch between question and saved financing",()=>{
+   const result=freeAdviceForQuestion(context,"Can I afford it with $2,000 down?", "down-payment");
+   expect(result).toContain("You mentioned a $2,000.00 down payment");
+   expect(result).toContain("saved financing estimate uses $1,000.00");
+   expect(result).toContain("figures below use the saved estimate");
  });
  it("warns about unfunded down payment",()=>{
    const result=freeAdvice(context,"down-payment");
