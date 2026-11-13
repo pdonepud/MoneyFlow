@@ -15,7 +15,7 @@ describe("advisor context",()=>{
  it("uses deterministic budget and loan figures",()=>{
   const facts=buildAdvisorFacts(context);
   expect(facts).toContain("Budget shortfall: $1,125.00");
-  expect(facts).toContain("Estimated monthly ownership cost: $386.07");
+  expect(facts).toContain("Estimated total monthly ownership cost: $386.07");
   expect(facts).toContain("Motorcycle: $1,000.00 saved");
  });
 });
