@@ -18,18 +18,23 @@ export function AuthPanel() {
     let active = true;
     try {
       const supabase = getSupabaseClient();
-      void supabase.auth.getUser().then(({ data, error }) => {
+      // Reading the local session avoids an unnecessary user lookup just to
+      // decide which page to show. The dashboard still verifies with getUser().
+      void supabase.auth.getSession().then(({ data, error }) => {
         if (!active) return;
-        if (error && error.name !== "AuthSessionMissingError") setMessage(error.message);
-        setUser(data.user);
+        if (error) setMessage(error.message);
+        setUser(data.session?.user ?? null);
         setReady(true);
-        if (data.user) router.replace("/");
+        if (data.session?.user) router.replace("/");
+      }).catch((error: unknown) => {
+        if (!active) return;
+        setMessage(error instanceof Error ? error.message : "Unable to check session.");
+        setReady(true);
       });
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (active) {
-          setUser(session?.user ?? null);
-          if (session?.user) router.replace("/");
-        }
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!active || event === "INITIAL_SESSION") return;
+        setUser(session?.user ?? null);
+        if (event === "SIGNED_IN" && session?.user) router.replace("/");
       });
       return () => { active = false; subscription.unsubscribe(); };
     } catch (error) {
@@ -48,10 +53,11 @@ export function AuthPanel() {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (!data.session) setMessage("Check your email for a confirmation link, then sign in.");
-        else router.replace("/");
+        else { setUser(data.user); router.replace("/"); }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        setUser(data.user);
         router.replace("/");
       }
       setPassword("");
