@@ -12,23 +12,25 @@ export function AuthGate({ children }: { children: ReactNode }) {
     let active = true;
     try {
       const supabase = getSupabaseClient();
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (!active) return;
-        if (!session) {
-          setStatus("checking");
-          router.replace("/login");
-        } else {
-          setStatus("authenticated");
-        }
-      });
+      // One authoritative verification per dashboard mount. Avoid competing
+      // redirects from an initial auth event and a second network request.
       void supabase.auth.getUser().then(({ data, error: authError }) => {
         if (!active) return;
         if (authError || !data.user) {
           setStatus("checking");
           router.replace("/login");
-        } else setStatus("authenticated");
+        } else {
+          setStatus("authenticated");
+        }
       }).catch(() => {
         if (active) { setError("Unable to verify your session. Please refresh."); setStatus("error"); }
+      });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!active) return;
+        if (event === "SIGNED_OUT" || (event === "USER_DELETED")) {
+          setStatus("checking");
+          router.replace("/login");
+        }
       });
       return () => { active = false; subscription.unsubscribe(); };
     } catch (e) {
@@ -53,7 +55,6 @@ export function SignOutButton() {
       const { error: authError } = await getSupabaseClient().auth.signOut();
       if (authError) throw authError;
       router.replace("/login");
-      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to sign out.");
       setBusy(false);
