@@ -6,6 +6,7 @@ import { GoalManager } from "@/components/goal-manager";
 import { SavingsPlanner } from "@/components/savings-planner";
 import { FinancingCalculator } from "@/components/financing-calculator";
 import { PurchaseAdvisor } from "@/components/purchase-advisor";
+import { AuthPanel } from "@/components/auth-panel";
 import { Card } from "@/components/ui/card";
 import { demo } from "@/lib/demo-data";
 import { formatMoney } from "@/lib/money";
@@ -25,6 +26,7 @@ export default function Home() {
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Make every paycheck count.</h1>
           <p className="mt-3 max-w-2xl text-slate-600">A simple place to organize paychecks, bills, and the things you are saving for.</p>
         </section>
+        <AuthPanel />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <PaycheckManager />
           <Card><div className="flex items-center justify-between text-sm text-slate-500"><span>Sample bills (reference only)</span><CalendarDays size={19}/></div><p className="mt-4 text-3xl font-bold">{formatMoney(demo.upcomingObligations.reduce((sum, bill) => sum + bill.amountCents, 0))}</p><p className="mt-2 text-xs text-slate-500">Illustrative obligations only</p></Card>
