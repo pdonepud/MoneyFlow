@@ -27,7 +27,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       });
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         if (!active) return;
-        if (event === "SIGNED_OUT" || (event === "USER_DELETED")) {
+        if (event === "SIGNED_OUT") {
           setStatus("checking");
           router.replace("/login");
         }
