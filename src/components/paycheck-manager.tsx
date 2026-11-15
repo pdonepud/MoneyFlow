@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CircleDollarSign, Pencil, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { isPaycheck, localDateISO, sortPaychecks, STORAGE_KEY, validatePaycheck, type Paycheck } from "@/lib/paychecks";
 
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600";
@@ -12,6 +13,10 @@ const action = "rounded-lg px-4 py-2 font-medium focus-visible:outline-2 focus-v
 export function PaycheckManager() {
   const [items, setItems] = useState<Paycheck[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [localCount, setLocalCount] = useState(0);
+  const [notice, setNotice] = useState("");
   const [storageError, setStorageError] = useState("");
   const [date, setDate] = useState("");
   const [today, setToday] = useState("");
@@ -22,31 +27,74 @@ export function PaycheckManager() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let active = true;
     setToday(localDateISO());
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed: unknown = JSON.parse(raw);
-        if (!Array.isArray(parsed) || !parsed.every(isPaycheck)) throw new Error("Invalid saved paycheck data");
-        setItems(sortPaychecks(parsed));
+        if (!Array.isArray(parsed) || !parsed.every(isPaycheck)) throw new Error("Invalid browser data");
+        setLocalCount(parsed.length);
       }
-    } catch {
-      setStorageError("Saved paycheck data could not be read. Existing browser data was not changed.");
-    } finally {
-      setLoaded(true);
+    } catch { setStorageError("Existing browser paycheck data could not be read; it was not changed."); }
+    async function load() {
+      try {
+        const client = getSupabaseClient();
+        const { data: auth, error: authError } = await client.auth.getUser();
+        if (authError || !auth.user) throw new Error("Sign in to load paychecks.");
+        const { data, error: dbError } = await client.from("paychecks")
+          .select("id,received_on,amount_cents,note").eq("user_id",auth.user.id)
+          .order("received_on",{ascending:false});
+        if (dbError) throw dbError;
+        const entries = (data ?? []).map(row => ({
+          id: row.id as string, date: row.received_on as string,
+          amountCents: Number(row.amount_cents), note: row.note as string
+        }));
+        if (!entries.every(isPaycheck)) throw new Error("Invalid data returned from database.");
+        if (active) { setUserId(auth.user.id); setItems(sortPaychecks(entries)); }
+      } catch(e) { if(active) setStorageError(e instanceof Error ? e.message : "Database unavailable."); }
+      finally { if(active) setLoaded(true); }
     }
+    void load();
+    return () => { active = false; };
   }, []);
 
-  function persist(next: Paycheck[]) {
+  async function refresh(id: string) {
+    const {data,error:dbError}=await getSupabaseClient().from("paychecks")
+      .select("id,received_on,amount_cents,note").eq("user_id",id)
+      .order("received_on",{ascending:false});
+    if(dbError) throw dbError;
+    const entries=(data??[]).map(row=>({
+      id:row.id as string,date:row.received_on as string,
+      amountCents:Number(row.amount_cents),note:row.note as string
+    }));
+    if(!entries.every(isPaycheck)) throw new Error("Invalid database response.");
+    setItems(sortPaychecks(entries));
+  }
+
+  async function importLocal() {
+    if(!userId || busy) return;
+    setBusy(true);setError("");setNotice("");
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      setItems(sortPaychecks(next));
-      setStorageError("");
-      return true;
-    } catch {
-      setStorageError("Unable to save paychecks in this browser. Check storage settings or available space.");
-      return false;
-    }
+      const parsed:unknown=JSON.parse(window.localStorage.getItem(STORAGE_KEY)??"[]");
+      if(!Array.isArray(parsed)||!parsed.every(isPaycheck)) throw new Error("Browser data invalid.");
+      if(!parsed.length) return;
+      if(!window.confirm("Import browser paychecks into THIS account? Only proceed if they belong to you. Original browser data will remain unchanged.")) return;
+      const client=getSupabaseClient();
+      for(const p of parsed as Paycheck[]) {
+        const {data:existing,error:lookupError}=await client.from("paychecks")
+          .select("id").eq("user_id",userId).eq("id",p.id).maybeSingle();
+        if(lookupError) throw lookupError;
+        if(existing) continue;
+        const {error:insertError}=await client.from("paychecks").insert({
+          id:p.id,user_id:userId,received_on:p.date,amount_cents:p.amountCents,note:p.note
+        });
+        if(insertError) throw insertError;
+      }
+      await refresh(userId);
+      setNotice("Import completed. Original browser records remain unchanged.");
+    } catch(e) {setError(e instanceof Error?e.message:"Import failed.");}
+    finally {setBusy(false);}
   }
 
   function reset() {
@@ -57,18 +105,42 @@ export function PaycheckManager() {
     setError("");
   }
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
+    if(!userId || busy) return;
+    setBusy(true);setError("");setNotice("");
     try {
-      const values = validatePaycheck(date, amount, note, localDateISO());
-      const next = editingId
-        ? items.map((item) => item.id === editingId ? { ...item, ...values } : item)
-        : [...items, { id: crypto.randomUUID(), ...values }];
-      if (persist(next)) reset();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Check the paycheck details.");
-    }
+      const values=validatePaycheck(date,amount,note,localDateISO());
+      const client=getSupabaseClient();
+      if(editingId) {
+        const {error:dbError}=await client.from("paychecks").update({
+          received_on:values.date,amount_cents:values.amountCents,note:values.note
+        }).eq("user_id",userId).eq("id",editingId);
+        if(dbError) throw dbError;
+      } else {
+        const {error:dbError}=await client.from("paychecks").insert({
+          id:crypto.randomUUID(),user_id:userId,received_on:values.date,
+          amount_cents:values.amountCents,note:values.note
+        });
+        if(dbError) throw dbError;
+      }
+      await refresh(userId);reset();setNotice("Saved to your account.");
+    } catch(e) {setError(e instanceof Error?e.message:"Unable to save paycheck.");}
+    finally {setBusy(false);}
+  }
+
+  async function remove(id:string) {
+    if(!userId || busy) return;
+    setBusy(true);setError("");setNotice("");
+    try {
+      const {error:dbError}=await getSupabaseClient().from("paychecks")
+        .delete().eq("user_id",userId).eq("id",id);
+      if(dbError) throw dbError;
+      await refresh(userId);setDeletingId(null);
+      if(editingId===id) reset();
+      setNotice("Paycheck deleted.");
+    } catch(e) {setError(e instanceof Error?e.message:"Unable to delete paycheck.");}
+    finally {setBusy(false);}
   }
 
   function edit(item: Paycheck) {
@@ -92,25 +164,30 @@ export function PaycheckManager() {
       <section id="paychecks" className="space-y-4 lg:col-span-2" aria-labelledby="paychecks-heading">
         <div>
           <h2 id="paychecks-heading" className="text-xl font-bold">Your paychecks</h2>
-          <p className="mt-1 text-sm text-slate-600">Saved only in this browser on this device. Not synced or backed up.</p>
+          <p className="mt-1 text-sm text-slate-600">Saved to your Supabase account and synced across devices.</p>
         </div>
+        {localCount>0 && <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm">
+          <p>Found {localCount} browser-stored paychecks. They have not been automatically assigned to your account.</p>
+          <button type="button" disabled={!loaded||!userId||busy} onClick={()=>void importLocal()} className="mt-2 rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white disabled:opacity-50">Import browser paychecks</button>
+        </div>}
+        {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
         {storageError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{storageError}</p>}
         <div className="grid gap-5 lg:grid-cols-2">
           <Card>
             <h3 className="mb-4 text-lg font-semibold">{editingId ? "Edit paycheck" : "Add paycheck"}</h3>
-            <form id="paycheck-form" onSubmit={submit} className="space-y-4">
+            <form id="paycheck-form" onSubmit={(event)=>void submit(event)} className="space-y-4">
               <label className="block text-sm font-medium">Date received
-                <input className={`mt-1 ${field}`} type="date" max={today || undefined} value={date} onChange={(e) => setDate(e.target.value)} required disabled={!loaded || !!storageError} />
+                <input className={`mt-1 ${field}`} type="date" max={today || undefined} value={date} onChange={(e) => setDate(e.target.value)} required disabled={!loaded || !userId || busy} />
               </label>
               <label className="block text-sm font-medium">Net amount (USD)
-                <input className={`mt-1 ${field}`} type="text" inputMode="decimal" placeholder="925.00" value={amount} onChange={(e) => setAmount(e.target.value)} required disabled={!loaded || !!storageError} />
+                <input className={`mt-1 ${field}`} type="text" inputMode="decimal" placeholder="925.00" value={amount} onChange={(e) => setAmount(e.target.value)} required disabled={!loaded || !userId || busy} />
               </label>
               <label className="block text-sm font-medium">Note (optional)
-                <textarea className={`mt-1 ${field}`} rows={2} maxLength={200} placeholder="e.g. Weekly paycheck" value={note} onChange={(e) => setNote(e.target.value)} disabled={!loaded || !!storageError} />
+                <textarea className={`mt-1 ${field}`} rows={2} maxLength={200} placeholder="e.g. Weekly paycheck" value={note} onChange={(e) => setNote(e.target.value)} disabled={!loaded || !userId || busy} />
               </label>
               {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
               <div className="flex flex-wrap gap-2">
-                <button type="submit" disabled={!loaded || !!storageError} className={`${action} bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50`}>{editingId ? "Save changes" : "Add paycheck"}</button>
+                <button type="submit" disabled={!loaded || !userId || busy} className={`${action} bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50`}>{editingId ? "Save changes" : "Add paycheck"}</button>
                 {editingId && <button type="button" onClick={reset} className={`${action} border border-slate-300`}>Cancel</button>}
               </div>
             </form>
@@ -130,7 +207,7 @@ export function PaycheckManager() {
                   {deletingId === item.id && <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm">
                     <p>Delete this paycheck? This cannot be undone.</p>
                     <div className="mt-2 flex gap-2">
-                      <button type="button" onClick={() => { if (persist(items.filter((entry) => entry.id !== item.id))) { setDeletingId(null); if (editingId === item.id) reset(); } }} className={`${action} bg-red-700 text-white`}>Confirm delete</button>
+                      <button type="button" onClick={() => { void remove(item.id) }} className={`${action} bg-red-700 text-white`}>Confirm delete</button>
                       <button type="button" onClick={() => setDeletingId(null)} className={`${action} border border-slate-300`}>Cancel</button>
                     </div>
                   </div>}
