@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { BUDGET_CHANGED, BUDGET_KEY, calculateBudget, isBudgetSettings, OBLIGATIONS_CHANGED, validateBudget, type BudgetSettings } from "@/lib/budget";
 import { formatMoney } from "@/lib/money";
-import { isObligation, monthKey, OBLIGATIONS_KEY, type Obligation } from "@/lib/obligations";
+import { isObligation, monthKey, type Obligation } from "@/lib/obligations";
 
 const field = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus-visible:outline-2 focus-visible:outline-indigo-600";
 const button = "rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-indigo-600";
