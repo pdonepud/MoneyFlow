@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { BUDGET_CHANGED, BUDGET_KEY, calculateBudget, isBudgetSettings, OBLIGATIONS_CHANGED, type BudgetSettings } from "@/lib/budget";
-import { GOALS_KEY, isSavingsGoal, type SavingsGoal } from "@/lib/goals";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import { financeUserId, readGoals, readBudgetAndBills } from "@/lib/supabase/finance";
+import { BUDGET_CHANGED, calculateBudget, OBLIGATIONS_CHANGED, type BudgetSettings } from "@/lib/budget";
+import { type SavingsGoal } from "@/lib/goals";
 import { formatMoney } from "@/lib/money";
-import { isObligation, monthKey, OBLIGATIONS_KEY, type Obligation } from "@/lib/obligations";
-import { GOALS_CHANGED, PRIORITY_KEY, planSavings } from "@/lib/savings-plan";
+import { monthKey, type Obligation } from "@/lib/obligations";
+import { GOALS_CHANGED, planSavings } from "@/lib/savings-plan";
 
 const selectClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus-visible:outline-2 focus-visible:outline-indigo-600";
 
@@ -16,54 +18,53 @@ export function SavingsPlanner() {
   const [obligations,setObligations] = useState<Obligation[]>([]);
   const [priorityId,setPriorityId] = useState("");
   const [loaded,setLoaded] = useState(false);
+  const [userId,setUserId]=useState<string|null>(null);
+  const [busy,setBusy]=useState(false);
   const [error,setError] = useState("");
   const [month,setMonth] = useState("");
 
   useEffect(()=>{
-    function refresh(){
+    let active=true;
+    async function refresh(){
       try{
-        const rawGoals = localStorage.getItem(GOALS_KEY);
-        const rawBudget = localStorage.getItem(BUDGET_KEY);
-        const rawBills = localStorage.getItem(OBLIGATIONS_KEY);
-        const parsedGoals: unknown = rawGoals ? JSON.parse(rawGoals) : [];
-        const parsedBudget: unknown = rawBudget ? JSON.parse(rawBudget) : null;
-        const parsedBills: unknown = rawBills ? JSON.parse(rawBills) : [];
-        if (!Array.isArray(parsedGoals) || !parsedGoals.every(isSavingsGoal)) throw new Error("Invalid goals");
-        if (parsedBudget !== null && !isBudgetSettings(parsedBudget)) throw new Error("Invalid budget");
-        if (!Array.isArray(parsedBills) || !parsedBills.every(isObligation)) throw new Error("Invalid bills");
-        setGoals(parsedGoals);
-        setSettings(parsedBudget);
-        setObligations(parsedBills);
-        const stored = localStorage.getItem(PRIORITY_KEY) || "";
-        const valid = parsedGoals.some(g=>g.id===stored);
-        setPriorityId(valid ? stored : "");
-        setMonth(monthKey());
-        setError("");
-      }catch{
-        setError("Unable to read savings plan data. Existing browser data was not changed.");
-      }finally{setLoaded(true);}
+        const id=await financeUserId();
+        const [nextGoals,account,pref]=await Promise.all([
+          readGoals(id),readBudgetAndBills(id),
+          getSupabaseClient().from("savings_preferences").select("priority_goal_id").eq("user_id",id).maybeSingle()
+        ]);
+        if(pref.error)throw pref.error;
+        if(!active)return;
+        setUserId(id);setGoals(nextGoals);setSettings(account.budget);setObligations(account.bills);
+        const chosen=pref.data?.priority_goal_id??"";
+        setPriorityId(nextGoals.some(g=>g.id===chosen)?chosen:"");
+        setMonth(monthKey());setError("");
+      }catch(e){if(active)setError(e instanceof Error?e.message:"Unable to load savings plan.");}
+      finally{if(active)setLoaded(true);}
     }
-    refresh();
-    window.addEventListener(GOALS_CHANGED,refresh);
-    window.addEventListener(BUDGET_CHANGED,refresh);
-    window.addEventListener(OBLIGATIONS_CHANGED,refresh);
-    window.addEventListener("storage",refresh);
+    void refresh();
+    const onChanged=()=>{void refresh();};
+    window.addEventListener(GOALS_CHANGED,onChanged);
+    window.addEventListener(BUDGET_CHANGED,onChanged);
+    window.addEventListener(OBLIGATIONS_CHANGED,onChanged);
     return ()=>{
-      window.removeEventListener(GOALS_CHANGED,refresh);
-      window.removeEventListener(BUDGET_CHANGED,refresh);
-      window.removeEventListener(OBLIGATIONS_CHANGED,refresh);
-      window.removeEventListener("storage",refresh);
+      active=false;
+      window.removeEventListener(GOALS_CHANGED,onChanged);
+      window.removeEventListener(BUDGET_CHANGED,onChanged);
+      window.removeEventListener(OBLIGATIONS_CHANGED,onChanged);
     };
   },[]);
 
-  function choose(id:string){
+  async function choose(id:string){
+    if(!userId||busy||id&&!goals.some(g=>g.id===id))return;
+    setBusy(true);setError("");
     try{
-      if(id && !goals.some(g=>g.id===id)) return;
-      if(id) localStorage.setItem(PRIORITY_KEY,id);
-      else localStorage.removeItem(PRIORITY_KEY);
+      const {error:dbError}=await getSupabaseClient().from("savings_preferences").upsert({
+        user_id:userId,priority_goal_id:id||null,updated_at:new Date().toISOString()
+      },{onConflict:"user_id"});
+      if(dbError)throw dbError;
       setPriorityId(id);
-      setError("");
-    }catch{setError("Unable to save priority in this browser.");}
+    }catch(e){setError(e instanceof Error?e.message:"Unable to save priority.");}
+    finally{setBusy(false);}
   }
   const budget = settings && month ? calculateBudget(settings,obligations,month) : null;
   const plan = budget ? planSavings(goals,priorityId || null,budget.spendableCents) : null;
@@ -75,7 +76,7 @@ export function SavingsPlanner() {
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <Card>
       <label className="block text-sm font-medium">Your top priority
-        <select className={selectClass} value={priorityId} onChange={e=>choose(e.target.value)} disabled={!loaded || !!error}>
+        <select className={selectClass} value={priorityId} onChange={e=>void choose(e.target.value)} disabled={!loaded||!userId||busy}>
           <option value="">Choose a goal to prioritize</option>
           {goals.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
         </select>
