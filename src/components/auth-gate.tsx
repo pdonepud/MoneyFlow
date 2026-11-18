@@ -25,7 +25,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       }).catch(() => {
         if (active) { setError("Unable to verify your session. Please refresh."); setStatus("error"); }
       });
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
         if (!active) return;
         if (event === "SIGNED_OUT") {
           setStatus("checking");
