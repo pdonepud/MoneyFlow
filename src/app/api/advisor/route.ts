@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ADVISOR_INSTRUCTIONS, buildAdvisorFacts, isAdvisorContext, type AdvisorContext } from "@/lib/advisor";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { monthKey } from "@/lib/obligations";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ const MAX_BODY_BYTES = 48_000;
 const MAX_MESSAGE_CHARS = 1500;
 const MAX_OUTPUT_TOKENS = 450;
 
-async function authenticatedContext(request:Request):Promise<AdvisorContext> {
+async function authenticatedContext(request:Request):Promise<{context:AdvisorContext;client:SupabaseClient}> {
   const header=request.headers.get("authorization")??"";
   if(!/^Bearer [A-Za-z0-9._-]+$/.test(header)) throw new Error("Unauthorized");
   const token=header.slice(7);
@@ -47,7 +47,7 @@ async function authenticatedContext(request:Request):Promise<AdvisorContext> {
     }:null
   };
   if(!isAdvisorContext(context))throw new Error("Invalid account financial data.");
-  return context;
+  return {context,client};
 }
 
 export async function POST(request: Request) {
@@ -66,10 +66,10 @@ export async function POST(request: Request) {
   if (!payload || typeof payload !== "object") return NextResponse.json({error:"Invalid request."},{status:400});
   const { message } = payload as Record<string,unknown>;
   if (typeof message !== "string" || !message.trim() || message.length > MAX_MESSAGE_CHARS) {
-    return NextResponse.json({error:"Invalid message or financial context."},{status:400});
+    return NextResponse.json({error:"Invalid message."},{status:400});
   }
-  let context:AdvisorContext;
-  try { context=await authenticatedContext(request); }
+  let account:{context:AdvisorContext;client:SupabaseClient};
+  try { account=await authenticatedContext(request); }
   catch(e) {
     const unauthorized=e instanceof Error&&e.message==="Unauthorized";
     return NextResponse.json({error:unauthorized?"Sign in to use the AI advisor.":"Unable to load account financial data."},
@@ -77,6 +77,10 @@ export async function POST(request: Request) {
   }
   const key = process.env.OPENAI_API_KEY;
   if (!key) return NextResponse.json({error:"AI advisor is not configured on the server."},{status:503});
+  // Fail closed if the quota migration has not been applied or Supabase is unavailable.
+  const {data:allowed,error:quotaError}=await account.client.rpc("consume_advisor_quota");
+  if(quotaError) return NextResponse.json({error:"AI advisor quota protection is unavailable. Contact the administrator."},{status:503});
+  if(allowed!==true) return NextResponse.json({error:"AI advisor limit reached (3 requests/minute, 20/day). Try again later."},{status:429});
   const controller = new AbortController();
   const timeout = setTimeout(()=>controller.abort(),15_000);
   try {
@@ -86,7 +90,7 @@ export async function POST(request: Request) {
       body:JSON.stringify({
         model:process.env.OPENAI_ADVISOR_MODEL || "gpt-4.1-mini",
         instructions:ADVISOR_INSTRUCTIONS,
-        input:[{role:"user",content:buildAdvisorFacts(context)+"\n\nUser question:\n"+message.trim()}],
+        input:[{role:"user",content:buildAdvisorFacts(account.context)+"\n\nUser question:\n"+message.trim()}],
         max_output_tokens:MAX_OUTPUT_TOKENS,
         store:false
       }),
