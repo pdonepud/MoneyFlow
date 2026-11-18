@@ -15,6 +15,9 @@ export function AuthPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reset") === "invalid") {
+      setMessage("This password reset link is invalid or expired. Request a new link using Forgot password.");
+    }
     let active = true;
     try {
       const supabase = getSupabaseClient();
