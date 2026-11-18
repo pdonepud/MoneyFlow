@@ -51,6 +51,7 @@ async function authenticatedContext(request:Request):Promise<{context:AdvisorCon
 }
 
 export async function POST(request: Request) {
+  if(process.env.ENABLE_PAID_ADVISOR!=="true") return NextResponse.json({error:"Paid AI advisor is disabled."},{status:503});
   const type = request.headers.get("content-type") || "";
   if (!type.toLowerCase().startsWith("application/json")) {
     return NextResponse.json({error:"Expected JSON request."},{status:415});
