@@ -1,15 +1,12 @@
 "use client";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-
-let client: SupabaseClient | null = null;
-
-export function getSupabaseClient(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new Error("Supabase isn't configured. Add the project URL and publishable key to .env.local, then restart the dev server.");
-  if (!client) client = createClient(url, key, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-  });
+let client:SupabaseClient|null=null;
+export function getSupabaseClient():SupabaseClient {
+  const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if(!url||!key) throw new Error("Supabase isn't configured. Add the project URL and publishable key to .env.local, then restart the dev server.");
+  if(!client) client=createBrowserClient(url,key);
   return client;
 }
