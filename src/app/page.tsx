@@ -44,7 +44,7 @@ export default function Home() {
         <SavingsPlanner />
         <FinancingCalculator />
         <PurchaseAdvisor />
-        <p className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900"><strong>Next up:</strong> Your paychecks, monthly obligations, and manual budget are stored in this browser. Sample bills are illustrative only. Savings goals are tracked separately from your available balance. The savings planner recommends allocations only; it does not transfer money.</p>
+        <p className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900"><strong>Account data:</strong> Your paychecks, monthly bills, budget, savings goals, goal priority, and financing estimate are stored in Supabase under your signed-in account. Sample bills are illustrative only. Savings goals are tracked separately from your available balance. The savings planner recommends allocations only; it does not transfer money.</p>
       </main>
     </div></AuthGate>
   );
