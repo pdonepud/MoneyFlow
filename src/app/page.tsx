@@ -6,14 +6,19 @@ import { GoalManager } from "@/components/goal-manager";
 import { SavingsPlanner } from "@/components/savings-planner";
 import { FinancingCalculator } from "@/components/financing-calculator";
 import { PurchaseAdvisor } from "@/components/purchase-advisor";
-import { AuthGate, SignOutButton } from "@/components/auth-gate";
+import { SignOutButton } from "@/components/auth-gate";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { demo } from "@/lib/demo-data";
 import { formatMoney } from "@/lib/money";
 
-export default function Home() {
+export default async function Home() {
+  const supabase=await createSupabaseServerClient();
+  const {data,error}=await supabase.auth.getUser();
+  if(error||!data.user) redirect("/login");
   return (
-    <AuthGate><div className="min-h-screen">
+    <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
           <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-600 p-2 text-white"><Wallet size={22} /></div><span className="text-xl font-bold tracking-tight">MoneyFlow</span></div>
@@ -46,6 +51,6 @@ export default function Home() {
         <PurchaseAdvisor />
         <p className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900"><strong>Account data:</strong> Your paychecks, monthly bills, budget, savings goals, goal priority, and financing estimate are stored in Supabase under your signed-in account. Sample bills are illustrative only. Savings goals are tracked separately from your available balance. The savings planner recommends allocations only; it does not transfer money.</p>
       </main>
-    </div></AuthGate>
+    </div>
   );
 }
