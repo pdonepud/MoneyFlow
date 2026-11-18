@@ -23,6 +23,7 @@
 ## Deferred testing backlog
 
 - [ ] **Password recovery end-to-end (blocked by Supabase email reset rate limit, 2026-11-18):** After email limits reset, request a single recovery email, verify the callback redirects to `/reset-password`, change password, confirm the previous password fails and the new password works, and verify financial records remain unchanged. Test locally first, then repeat on the deployed production domain after SMTP/redirect configuration. Do not mark complete until tested.
+- [ ] **Recovery link opens login instead of reset form (blocked by Supabase email reset limit, 2026-11-18):** Once rate limits reset, request exactly one fresh link on the deployed MoneyFlow site. Verify it lands on `/reset-password` with **New password** and **Confirm new password** fields, not `/login`. If redirected to `/login?reset=invalid`, inspect the callback URL format and Supabase Auth logs without exposing recovery tokens. Verify both password fields, mismatched-password validation, successful update, and login with the new password. The callback code was updated to handle PKCE codes and recovery token hashes, but the fix is not yet end-to-end verified.
 - [ ] **Production reset-email delivery:** Configure custom SMTP when ready; verify production callback URL is allowlisted and email delivery succeeds without repeated requests.
 
 ## Deployment
