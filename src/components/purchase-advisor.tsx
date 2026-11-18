@@ -31,11 +31,11 @@ export function PurchaseAdvisor() {
         answer=topic?freeAdviceForQuestion(context,text,topic):
           "I can help with your budget, down payment, monthly financing costs, and savings goals. Choose a suggested question.";
       } else {
-        const {data,error:sessionError}=await getSupabaseClient().auth.getSession();
-        if(sessionError||!data.session?.access_token)throw new Error("Sign in to use the AI advisor.");
+        const {data:sessionData,error:sessionError}=await getSupabaseClient().auth.getSession();
+        if(sessionError||!sessionData.session?.access_token)throw new Error("Sign in to use the AI advisor.");
         const response=await fetch("/api/advisor",{
           method:"POST",
-          headers:{"Content-Type":"application/json",Authorization:`Bearer ${data.session.access_token}`},
+          headers:{"Content-Type":"application/json",Authorization:`Bearer ${sessionData.session.access_token}`},
           body:JSON.stringify({message:text})
         });
         const data:unknown=await response.json();
