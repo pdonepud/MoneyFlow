@@ -111,7 +111,7 @@ export function AuthPanel() {
             <input id="account-password" type="password" autoComplete={mode==="signup"?"new-password":"current-password"} minLength={6} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"/></div>
           {mode==="login"&&<button type="button" onClick={()=>{setMode("forgot");setMessage("");}} className="text-sm font-medium text-indigo-700 underline">Forgot password?</button>}
           <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy?"Working…":mode==="signup"?"Create account":"Sign in"}</button>
-        </form>
+        </form>}
       </div>}
     {message && <p role="status" className="mt-3 text-sm text-slate-700">{message}</p>}
     <p className="mt-3 text-xs text-amber-800">Your financial records are stored in Supabase under your signed-in account. Sign out when using a shared device.</p>
