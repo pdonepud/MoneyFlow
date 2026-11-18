@@ -20,6 +20,11 @@
 9. Confirm signup/email verification, logout, refresh, second-device login, and error states on the deployed URL.
 10. After the SQL migration, test paid endpoint with no bearer token (expect 401), an invalid token (401), and a valid token with missing API key (503). With a configured API key, verify 3 requests per minute and a 429 on the fourth. The API will consume quota even when the provider fails.
 
+## Deferred testing backlog
+
+- [ ] **Password recovery end-to-end (blocked by Supabase email reset rate limit, 2026-11-18):** After email limits reset, request a single recovery email, verify the callback redirects to `/reset-password`, change password, confirm the previous password fails and the new password works, and verify financial records remain unchanged. Test locally first, then repeat on the deployed production domain after SMTP/redirect configuration. Do not mark complete until tested.
+- [ ] **Production reset-email delivery:** Configure custom SMTP when ready; verify production callback URL is allowlisted and email delivery succeeds without repeated requests.
+
 ## Deployment
 Connect GitHub repo `pdonepud/MoneyFlow` to Vercel. Framework preset: Next.js. Run `npm install` to install @supabase/ssr, then `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` locally before deploying. Do not deploy paid AI publicly until above checks are complete.
 
