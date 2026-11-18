@@ -93,7 +93,7 @@ export function AuthPanel() {
           <button type="button" aria-pressed={mode==="signup"} onClick={()=>{setMode("signup");setMessage("");}} className={`rounded-lg px-3 py-2 text-sm font-medium ${mode==="signup"?"bg-indigo-600 text-white":"border border-slate-300"}`}>Create account</button>
         </div>
         {mode==="forgot" ? <form onSubmit={e=>void sendReset(e)} className="space-y-3">
-          <p className="text-sm text-slate-600">Enter your account email and we'll send you a password reset link.</p>
+          <p className="text-sm text-slate-600">Enter your account email and we&apos;ll send you a password reset link.</p>
           <div><label htmlFor="recovery-email" className="mb-1 block text-sm font-medium">Email</label>
             <input id="recovery-email" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"/></div>
           <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy?"Sending…":"Send reset link"}</button>
