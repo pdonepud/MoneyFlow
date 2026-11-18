@@ -97,6 +97,6 @@ export function AuthPanel() {
         </form>
       </div>}
     {message && <p role="status" className="mt-3 text-sm text-slate-700">{message}</p>}
-    <p className="mt-3 text-xs text-amber-800">Financial records are still stored in this browser, not yet isolated per account or synced to Supabase. Avoid shared devices until database migration is complete.</p>
+    <p className="mt-3 text-xs text-amber-800">Your financial records are stored in Supabase under your signed-in account. Sign out when using a shared device.</p>
   </section>;
 }
