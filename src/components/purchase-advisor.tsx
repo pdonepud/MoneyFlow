@@ -2,11 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { Card } from "@/components/ui/card";
-import { BUDGET_KEY, isBudgetSettings } from "@/lib/budget";
-import { FINANCING_KEY, calculateFinancing, type FinancingInputs } from "@/lib/financing";
-import { GOALS_KEY, isSavingsGoal } from "@/lib/goals";
-import { isObligation, monthKey, OBLIGATIONS_KEY } from "@/lib/obligations";
-import { type AdvisorContext, isAdvisorContext } from "@/lib/advisor";
+import { readAccountAdvisorContext } from "@/lib/supabase/advisor-context";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { classifyFreeQuestion, FREE_TOPICS, freeAdviceForQuestion, type FreeTopic } from "@/lib/free-advisor";
 
 type ChatMessage = { role:"user"|"assistant"; text:string };
@@ -16,75 +13,46 @@ const suggestions = [
   "How do my savings goals affect this purchase?"
 ];
 
-function readContext(): AdvisorContext {
-  const read = (key:string):unknown => {
-    const raw = localStorage.getItem(key);
-    return raw === null ? null : JSON.parse(raw);
-  };
-  const budget = read(BUDGET_KEY);
-  const bills = read(OBLIGATIONS_KEY) ?? [];
-  const goals = read(GOALS_KEY) ?? [];
-  const financing = read(FINANCING_KEY);
-  if (budget !== null && !isBudgetSettings(budget)) throw new Error("Saved budget is invalid.");
-  if (!Array.isArray(bills) || !bills.every(isObligation)) throw new Error("Saved bills are invalid.");
-  if (!Array.isArray(goals) || !goals.every(isSavingsGoal)) throw new Error("Saved goals are invalid.");
-  if (financing !== null) {
-    try { calculateFinancing(financing as FinancingInputs); }
-    catch { throw new Error("Saved financing estimate is invalid."); }
-  }
-  const context:AdvisorContext = {
-    budget, obligations:bills, goals, financing:financing as FinancingInputs|null, month:monthKey()
-  };
-  if (!isAdvisorContext(context)) throw new Error("Your saved financial data could not be validated.");
-  return context;
-}
-
 export function PurchaseAdvisor() {
   const [messages,setMessages] = useState<ChatMessage[]>([]);
   const [mode,setMode] = useState<"free"|"ai">("free");
   const [question,setQuestion] = useState("");
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
-  async function ask(value:string) {
+  async function ask(value:string, forcedTopic?:FreeTopic) {
     const text=value.trim();
-    if (!text || busy || text.length>1500) return;
-    setError("");
-    let context:AdvisorContext;
-    try { context=readContext(); }
-    catch(e) { setError(e instanceof Error?e.message:"Unable to read saved data."); return; }
-    setMessages(old=>[...old,{role:"user",text}]);
-    setQuestion("");
-    if (mode==="free") {
-      const topic=classifyFreeQuestion(text);
-      setMessages(old=>[...old,{role:"assistant",text:topic ? freeAdviceForQuestion(context,text,topic) : "I can help with your budget, down payment, monthly financing costs, and savings goals. Choose one of the suggested questions below."}]);
-      return;
-    }
-    setBusy(true);
+    if(!text||busy||text.length>1500)return;
+    setBusy(true);setError("");
     try {
-      const response=await fetch("/api/advisor",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({message:text,context})
-      });
-      const data:unknown=await response.json();
-      if (!data || typeof data!=="object") throw new Error("Invalid server response.");
-      const result=data as {answer?:unknown;error?:unknown};
-      if (!response.ok || typeof result.answer!=="string") {
-        throw new Error(typeof result.error==="string"?result.error:"Unable to get advice.");
+      const context=await readAccountAdvisorContext();
+      const topic=forcedTopic??classifyFreeQuestion(text);
+      let answer:string;
+      if(mode==="free"||forcedTopic) {
+        answer=topic?freeAdviceForQuestion(context,text,topic):
+          "I can help with your budget, down payment, monthly financing costs, and savings goals. Choose a suggested question.";
+      } else {
+        const {data,error:sessionError}=await getSupabaseClient().auth.getSession();
+        if(sessionError||!data.session?.access_token)throw new Error("Sign in to use the AI advisor.");
+        const response=await fetch("/api/advisor",{
+          method:"POST",
+          headers:{"Content-Type":"application/json",Authorization:`Bearer ${data.session.access_token}`},
+          body:JSON.stringify({message:text})
+        });
+        const data:unknown=await response.json();
+        if(!data||typeof data!=="object")throw new Error("Invalid server response.");
+        const result=data as {answer?:unknown;error?:unknown};
+        if(!response.ok||typeof result.answer!=="string")
+          throw new Error(typeof result.error==="string"?result.error:"Unable to get advice.");
+        answer=result.answer;
       }
-      setMessages(old=>[...old,{role:"assistant",text:result.answer as string}]);
-    } catch(e) {
-      setError(e instanceof Error?e.message:"Unable to contact the advisor.");
-    } finally { setBusy(false); }
+      setMessages(old=>[...old,{role:"user",text},{role:"assistant",text:answer}]);
+      setQuestion("");
+    }catch(e){setError(e instanceof Error?e.message:"Unable to load account data.");}
+    finally{setBusy(false);}
   }
   function askTopic(topic:FreeTopic) {
-    if (busy) return;
-    setError("");
-    try {
-      const context=readContext();
-      const label=FREE_TOPICS.find(t=>t.id===topic)?.label ?? topic;
-      setMessages(old=>[...old,{role:"user",text:label},{role:"assistant",text:freeAdviceForQuestion(context,label,topic)}]);
-    } catch(e) { setError(e instanceof Error?e.message:"Unable to read saved data."); }
+    const label=FREE_TOPICS.find(t=>t.id===topic)?.label??topic;
+    void ask(label,topic);
   }
   function submit(e:FormEvent<HTMLFormElement>) { e.preventDefault(); void ask(question); }
   return <section aria-labelledby="advisor-heading" className="space-y-4">
@@ -100,12 +68,12 @@ export function PurchaseAdvisor() {
           className={`rounded-lg px-4 py-2 text-sm font-semibold ${mode==="ai"?"bg-indigo-600 text-white":"border border-slate-300 text-slate-700"}`}>AI advisor (API credits)</button>
       </div>
       <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-        {mode==="free" ? "Free mode runs entirely in your browser. No API key, credits or financial data upload is required. It supports common budget, savings and financing questions, not unrestricted conversation." :
-        "AI mode sends your saved financial amounts and goal names to the AI provider and requires separately billed API credits."}
+        {mode==="free" ? "Free mode reads your account data from Supabase and calculates advice in your browser. No OpenAI API credits are required. It supports common budget, savings and financing questions, not unrestricted conversation." :
+        "AI mode retrieves your account financial snapshot on the server and sends relevant amounts and goal names to the AI provider and requires separately billed API credits."}
         {" "}Figures are based on your entries, not bank-verified. Monthly affordability needs recurring income. No transactions are made.
       </div>
       {mode==="free" && <div className="flex flex-wrap gap-2">{FREE_TOPICS.map(t=>
-        <button key={t.id} type="button" onClick={()=>askTopic(t.id)} className="rounded-full border border-indigo-200 px-3 py-2 text-left text-sm text-indigo-700 hover:bg-indigo-50">{t.label}</button>
+        <button key={t.id} type="button" disabled={busy} onClick={()=>askTopic(t.id)} className="rounded-full border border-indigo-200 px-3 py-2 text-left text-sm text-indigo-700 hover:bg-indigo-50">{t.label}</button>
       )}</div>}
       <div aria-live="polite" className="max-h-96 space-y-3 overflow-y-auto">
         {messages.length===0 && mode==="ai" ? <div className="space-y-3">
