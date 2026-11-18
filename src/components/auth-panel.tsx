@@ -7,7 +7,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 export function AuthPanel() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -44,6 +44,16 @@ export function AuthPanel() {
     }
   }, []);
 
+  async function sendReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();setBusy(true);setMessage("");
+    try{
+      const redirectTo=`${window.location.origin}/auth/callback`;
+      const {error}=await getSupabaseClient().auth.resetPasswordForEmail(email.trim(),{redirectTo});
+      if(error)throw error;
+      setMessage("If an account exists for that email, a password reset link will arrive shortly. Check your inbox and spam folder.");
+    }catch(e){setMessage(e instanceof Error?e.message:"Unable to send reset email.");}
+    finally{setBusy(false);}
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -82,7 +92,13 @@ export function AuthPanel() {
           <button type="button" aria-pressed={mode==="login"} onClick={()=>{setMode("login");setMessage("");}} className={`rounded-lg px-3 py-2 text-sm font-medium ${mode==="login"?"bg-indigo-600 text-white":"border border-slate-300"}`}>Sign in</button>
           <button type="button" aria-pressed={mode==="signup"} onClick={()=>{setMode("signup");setMessage("");}} className={`rounded-lg px-3 py-2 text-sm font-medium ${mode==="signup"?"bg-indigo-600 text-white":"border border-slate-300"}`}>Create account</button>
         </div>
-        <form onSubmit={submit} className="space-y-3">
+        {mode==="forgot" ? <form onSubmit={e=>void sendReset(e)} className="space-y-3">
+          <p className="text-sm text-slate-600">Enter your account email and we'll send you a password reset link.</p>
+          <div><label htmlFor="recovery-email" className="mb-1 block text-sm font-medium">Email</label>
+            <input id="recovery-email" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"/></div>
+          <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy?"Sending…":"Send reset link"}</button>
+          <button type="button" onClick={()=>{setMode("login");setMessage("");}} className="text-sm font-medium text-indigo-700 underline">Back to sign in</button>
+        </form> : <form onSubmit={submit} className="space-y-3">
           {mode==="signup" && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><label htmlFor="account-first-name" className="mb-1 block text-sm font-medium">First name</label>
               <input id="account-first-name" type="text" autoComplete="given-name" required maxLength={80} value={firstName} onChange={e=>setFirstName(e.target.value)} placeholder="First name" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"/></div>
@@ -93,6 +109,7 @@ export function AuthPanel() {
             <input id="account-email" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"/></div>
           <div><label htmlFor="account-password" className="mb-1 block text-sm font-medium">Password</label>
             <input id="account-password" type="password" autoComplete={mode==="signup"?"new-password":"current-password"} minLength={6} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"/></div>
+          {mode==="login"&&<button type="button" onClick={()=>{setMode("forgot");setMessage("");}} className="text-sm font-medium text-indigo-700 underline">Forgot password?</button>}
           <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy?"Working…":mode==="signup"?"Create account":"Sign in"}</button>
         </form>
       </div>}
