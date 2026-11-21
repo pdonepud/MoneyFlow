@@ -27,16 +27,37 @@ export function PaycheckManager() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let active = true;
-    setToday(localDateISO());
+  let active = true;
+
+  async function checkLocalPaychecks() {
+    await Promise.resolve();
+    if (!active) return;
+      setToday(localDateISO());
+
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
+
       if (raw) {
         const parsed: unknown = JSON.parse(raw);
-        if (!Array.isArray(parsed) || !parsed.every(isPaycheck)) throw new Error("Invalid browser data");
-        setLocalCount(parsed.length);
+
+        if (!Array.isArray(parsed) || !parsed.every(isPaycheck)) {
+          throw new Error("Invalid browser data");
+        }
+
+        if (active) {
+          setLocalCount(parsed.length);
+        }
       }
-    } catch { setStorageError("Existing browser paycheck data could not be read; it was not changed."); }
+    } catch {
+      if (active) {
+        setStorageError(
+          "Existing browser paycheck data could not be read; it was not changed."
+        );
+      }
+    }
+  }
+
+  void checkLocalPaychecks();
     async function load() {
       try {
         const client = getSupabaseClient();

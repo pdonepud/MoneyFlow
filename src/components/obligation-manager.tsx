@@ -25,19 +25,36 @@ export function ObligationManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [currentMonth, setCurrentMonth] = useState("");
+  const [currentMonth] = useState(() => monthKey());
 
   useEffect(() => {
-    let active=true;
-    setCurrentMonth(monthKey());
+  let active = true;
+
+  async function checkLocalBills() {
     try {
-      const raw=localStorage.getItem(OBLIGATIONS_KEY);
-      if(raw) {
-        const data:unknown=JSON.parse(raw);
-        if(!Array.isArray(data)||!data.every(isObligation)) throw new Error("Invalid browser bills");
-        setLocalCount(data.length);
+      const raw = localStorage.getItem(OBLIGATIONS_KEY);
+
+      if (raw) {
+        const data: unknown = JSON.parse(raw);
+
+        if (!Array.isArray(data) || !data.every(isObligation)) {
+          throw new Error("Invalid browser bills");
+        }
+
+        if (active) {
+          setLocalCount(data.length);
+        }
       }
-    } catch {setStorageError("Existing browser bills could not be read; they were not changed.");}
+    } catch {
+      if (active) {
+        setStorageError(
+          "Existing browser bills could not be read; they were not changed."
+        );
+      }
+    }
+  }
+
+  void checkLocalBills();
     async function load() {
       try {
         const client=getSupabaseClient();

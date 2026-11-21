@@ -31,12 +31,33 @@ export function FinancingCalculator() {
   const [busy,setBusy]=useState(false);
   const [hasLocal,setHasLocal]=useState(false);
   const [notice,setNotice]=useState("");
-  useEffect(()=>{
-    let active=true;
-    try{
-      const raw=localStorage.getItem(FINANCING_KEY);
-      if(raw){const parsed:unknown=JSON.parse(raw);calculateFinancing(parsed as FinancingInputs);setHasLocal(true);}
-    }catch{setStorageError("Existing browser financing data could not be read; it was not changed.");}
+  useEffect(() => {
+  let active = true;
+
+  async function checkLocalFinancing() {
+    try {
+      const raw = localStorage.getItem(FINANCING_KEY);
+
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+
+        // Validate the saved financing estimate.
+        calculateFinancing(parsed as FinancingInputs);
+
+        if (active) {
+          setHasLocal(true);
+        }
+      }
+    } catch {
+      if (active) {
+        setStorageError(
+          "Existing browser financing data could not be read; it was not changed."
+        );
+      }
+    }
+  }
+
+  void checkLocalFinancing();
     async function refresh(){
       try{
         const id=await financeUserId();

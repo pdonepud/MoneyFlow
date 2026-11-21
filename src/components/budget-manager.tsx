@@ -15,7 +15,7 @@ export function BudgetManager() {
   const [balance, setBalance] = useState("");
   const [buffer, setBuffer] = useState("0");
   const [obligations, setObligations] = useState<Obligation[]>([]);
-  const [month, setMonth] = useState("");
+  const [month] = useState(() => monthKey());
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -24,17 +24,34 @@ export function BudgetManager() {
   const [error, setError] = useState("");
   const [storageError, setStorageError] = useState("");
 
-  useEffect(() => {
-    let active=true;
-    setMonth(monthKey());
+ useEffect(() => {
+  let active = true;
+
+  async function checkLocalBudget() {
     try {
-      const raw=localStorage.getItem(BUDGET_KEY);
-      if(raw) {
-        const parsed:unknown=JSON.parse(raw);
-        if(!isBudgetSettings(parsed)) throw new Error("Invalid browser budget");
-        setHasLocalBudget(true);
+      const raw = localStorage.getItem(BUDGET_KEY);
+
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+
+        if (!isBudgetSettings(parsed)) {
+          throw new Error("Invalid browser budget");
+        }
+
+        if (active) {
+          setHasLocalBudget(true);
+        }
       }
-    } catch {setStorageError("Existing browser budget could not be read; it was not changed.");}
+    } catch {
+      if (active) {
+        setStorageError(
+          "Existing browser budget could not be read; it was not changed."
+        );
+      }
+    }
+  }
+
+  void checkLocalBudget();
     async function refreshBills(id:string) {
       const {data,error:dbError}=await getSupabaseClient().from("obligations")
         .select("id,name,category,amount_cents,due_day,paid_for_month").eq("user_id",id);

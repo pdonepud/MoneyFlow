@@ -26,16 +26,34 @@ export function GoalManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active=true;
+ useEffect(() => {
+  let active = true;
+
+  async function checkLocalGoals() {
     try {
-      const raw=localStorage.getItem(GOALS_KEY);
-      if(raw) {
-        const parsed:unknown=JSON.parse(raw);
-        if(!Array.isArray(parsed)||!parsed.every(isSavingsGoal)) throw new Error("Invalid local goals");
-        setLocalCount(parsed.length);
+      const raw = localStorage.getItem(GOALS_KEY);
+
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+
+        if (!Array.isArray(parsed) || !parsed.every(isSavingsGoal)) {
+          throw new Error("Invalid local goals");
+        }
+
+        if (active) {
+          setLocalCount(parsed.length);
+        }
       }
-    } catch {setStorageError("Existing browser goals could not be read; no data was changed.");}
+    } catch {
+      if (active) {
+        setStorageError(
+          "Existing browser goals could not be read; no data was changed."
+        );
+      }
+    }
+  }
+
+  void checkLocalGoals();
     async function load(){
       try {
         const id=await financeUserId();

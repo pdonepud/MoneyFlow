@@ -15,10 +15,17 @@ export function AuthPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("reset") === "invalid") {
-      setMessage("This password reset link is invalid or expired. Request a new link using Forgot password.");
-    }
-    let active = true;
+  let active = true;
+
+  if (new URLSearchParams(window.location.search).get("reset") === "invalid") {
+    void Promise.resolve().then(() => {
+      if (active) {
+        setMessage(
+          "This password reset link is invalid or expired. Request a new link using Forgot password."
+        );
+      }
+    });
+  }
     try {
       const supabase = getSupabaseClient();
       // Reading the local session avoids an unnecessary user lookup just to
@@ -41,9 +48,17 @@ export function AuthPanel() {
         // Avoid racing the submit handler with a second redirect.
       });
       return () => { active = false; subscription.unsubscribe(); };
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Supabase configuration error.");
-      setReady(true);
+       } catch (error) {
+      void Promise.resolve().then(() => {
+        if (!active) return;
+
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Supabase configuration error."
+        );
+        setReady(true);
+      });
     }
   }, []);
 
