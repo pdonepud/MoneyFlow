@@ -8,3 +8,9 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 .env.local
+# Playwright generated files
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/playwright/.auth/
+/blob-report/
